@@ -5,7 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -27,7 +27,13 @@ var (
 // NewKey creates a new random key of the given size.
 func NewKey(size int) []byte {
 	b := make([]byte, size)
-	rand.Read(b)
+	n, err := rand.Read(b)
+	if err != nil {
+		panic("tokenizer: rand.Read failed: " + err.Error())
+	}
+	if n != size {
+		panic("tokenizer: short read from rand.Read")
+	}
 	return b
 }
 
@@ -40,14 +46,14 @@ type T struct {
 }
 
 // New creates and initializes a new tokenizer T.
-// sha1.New is used for HMAC in case f is nil.
+// sha256.New is used for HMAC in case f is nil.
 func New(aesKey, hmacKey []byte, f func() hash.Hash) (*T, error) {
 	c, err := aes.NewCipher(aesKey)
 	if err != nil {
 		return nil, err
 	}
 	if f == nil {
-		f = sha1.New
+		f = sha256.New
 	}
 	tok := &T{
 		aes:  c,

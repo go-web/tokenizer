@@ -3,7 +3,7 @@ package tokenizer
 import (
 	"bytes"
 	"crypto/aes"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"testing"
 	"time"
@@ -12,7 +12,7 @@ import (
 func newTokenizer() (*T, error) {
 	return New(
 		NewKey(aes.BlockSize),
-		NewKey(sha1.BlockSize),
+		NewKey(sha256.BlockSize),
 		nil,
 	)
 }
@@ -53,7 +53,8 @@ func TestDecodeErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("unexpected decode with invalid payload")
 	}
-	bad = base64.RawURLEncoding.EncodeToString(make([]byte, 58))
+	l := aes.BlockSize*2 + tok.hmac().Size()
+	bad = base64.RawURLEncoding.EncodeToString(make([]byte, l))
 	_, _, err = tok.Decode([]byte(bad))
 	if err != ErrInvalidTokenSignature {
 		t.Fatalf("unexpected error: %v", err)

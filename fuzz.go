@@ -7,10 +7,10 @@ package tokenizer
 
 import (
 	"crypto/aes"
-	"crypto/sha1"
+	"crypto/sha256"
 )
 
-var tok, _ = New(NewKey(aes.BlockSize), NewKey(sha1.BlockSize), nil)
+var tok, _ = New(NewKey(aes.BlockSize), NewKey(sha256.BlockSize), nil)
 var iv = NewKey(aes.BlockSize)
 
 func Fuzz(data []byte) int {

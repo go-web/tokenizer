@@ -22,4 +22,3 @@ Download:
 	go get github.com/go-web/tokenizer
 
 See the [example](./example_test.go) for details.
-

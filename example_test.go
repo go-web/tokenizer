@@ -2,7 +2,7 @@ package tokenizer_test
 
 import (
 	"crypto/aes"
-	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"time"
@@ -12,7 +12,7 @@ import (
 
 func ExampleToken() {
 	aesKey := tokenizer.NewKey(aes.BlockSize)
-	hmacKey := tokenizer.NewKey(sha1.BlockSize)
+	hmacKey := tokenizer.NewKey(sha256.BlockSize)
 	t, err := tokenizer.New(aesKey, hmacKey, nil)
 	if err != nil {
 		log.Fatal(err)
