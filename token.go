@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"hash"
+	"io"
 	"time"
 )
 
@@ -27,12 +28,9 @@ var (
 // NewKey creates a new random key of the given size.
 func NewKey(size int) []byte {
 	b := make([]byte, size)
-	n, err := rand.Read(b)
+	_, err := io.ReadAtLeast(rand.Reader, b, size)
 	if err != nil {
-		panic("tokenizer: rand.Read failed: " + err.Error())
-	}
-	if n != size {
-		panic("tokenizer: short read from rand.Read")
+		panic("tokenizer: rand.Reader failed: " + err.Error())
 	}
 	return b
 }
