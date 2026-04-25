@@ -10,7 +10,7 @@ import (
 	"github.com/go-web/tokenizer"
 )
 
-func ExampleToken() {
+func ExampleT() {
 	aesKey := tokenizer.NewKey(aes.BlockSize)
 	hmacKey := tokenizer.NewKey(sha256.BlockSize)
 	t, err := tokenizer.New(aesKey, hmacKey, nil)
