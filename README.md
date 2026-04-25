@@ -5,15 +5,15 @@ data in a secure way.
 
 Tokens generated with this tokenizer consist of:
 
-	token = base64url(iv,aes(pkcs7(ts,data)),hmac)
+	token = base64url(version,iv,aes(pkcs7(ts,data)),hmac)
 
-All tokens embed the time they were created, and that information is
-available when the token is decoded. Time is always in UTC, with 1s
-precision.
+The leading version byte (currently `1`) lets future versions reject
+older formats. All tokens embed the creation time and return it on
+decode. Time is in UTC with 1 second precision, stored as a uint32 unix
+timestamp; values overflow after 2106-02-07T06:28:15Z.
 
 [![GoDoc](https://godoc.org/github.com/go-web/tokenizer?status.svg)](https://godoc.org/github.com/go-web/tokenizer)
-
-[![Build Status](https://secure.travis-ci.org/go-web/tokenizer.png)](http://travis-ci.org/go-web/tokenizer)
+[![CI](https://github.com/go-web/tokenizer/actions/workflows/ci.yml/badge.svg)](https://github.com/go-web/tokenizer/actions/workflows/ci.yml)
 
 ## Usage
 
