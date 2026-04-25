@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+// tokenVersion is the wire-format version prefix included in every token.
+// Tokens whose first byte does not match are rejected by Decode.
+const tokenVersion byte = 1
+
 // Tokenizer errors.
 var (
 	// ErrInvalidToken indicates the input to Decode
@@ -23,6 +27,13 @@ var (
 	// ErrInvalidTokenSignature indicates the input to Decode
 	// contains an invalid signature.
 	ErrInvalidTokenSignature = errors.New("tokenizer: invalid token signature")
+
+	// ErrUnsupportedTokenVersion indicates the input to Decode
+	// uses a token format version this tokenizer does not understand.
+	ErrUnsupportedTokenVersion = errors.New("tokenizer: unsupported token version")
+
+	// ErrInvalidHMACKey indicates the hmacKey passed to New is empty.
+	ErrInvalidHMACKey = errors.New("tokenizer: empty hmac key")
 )
 
 // NewKey creates a new random key of the given size.
@@ -45,7 +56,13 @@ type T struct {
 
 // New creates and initializes a new tokenizer T.
 // sha256.New is used for HMAC in case f is nil.
+//
+// hmacKey must be non-empty; an empty key collapses HMAC integrity.
+// For sha256-based HMAC the recommended key length is 32 bytes.
 func New(aesKey, hmacKey []byte, f func() hash.Hash) (*T, error) {
+	if len(hmacKey) == 0 {
+		return nil, ErrInvalidHMACKey
+	}
 	c, err := aes.NewCipher(aesKey)
 	if err != nil {
 		return nil, err
@@ -61,6 +78,9 @@ func New(aesKey, hmacKey []byte, f func() hash.Hash) (*T, error) {
 }
 
 // Encode encodes the given byte slice and returns a token.
+//
+// Tokens carry a uint32 unix-second creation timestamp; values overflow
+// after 2106-02-07T06:28:15Z.
 func (tok *T) Encode(data []byte) (token []byte, err error) {
 	if data == nil {
 		data = []byte{}
@@ -73,14 +93,19 @@ func (tok *T) Encode(data []byte) (token []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	iv := NewKey(aes.BlockSize)
+	iv := make([]byte, aes.BlockSize)
+	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, err
+	}
 	mode := cipher.NewCBCEncrypter(tok.aes, iv)
 	mode.CryptBlocks(body, body)
 	hash := tok.hmac()
-	// size = len(iv + aesblocks + signature)
-	token = make([]byte, len(iv)+len(body)+hash.Size())
-	copy(token, iv)
-	offset := len(iv)
+	// size = len(version + iv + aesblocks + signature)
+	token = make([]byte, 1+len(iv)+len(body)+hash.Size())
+	token[0] = tokenVersion
+	offset := 1
+	copy(token[offset:], iv)
+	offset += len(iv)
 	copy(token[offset:], body)
 	offset += len(body)
 	hash.Write(token[:offset])
@@ -92,6 +117,10 @@ func (tok *T) Encode(data []byte) (token []byte, err error) {
 
 // Decode decodes the given token and return its data
 // and creation time in UTC.
+//
+// The creation time is parsed as a uint32 unix-second value; tokens
+// minted after 2106-02-07T06:28:15Z wrap and decode to early-1970
+// timestamps.
 func (tok *T) Decode(token []byte) (data []byte, creation time.Time, err error) {
 	raw := make([]byte, base64.RawURLEncoding.DecodedLen(len(token)))
 	n, err := base64.RawURLEncoding.Decode(raw, token)
@@ -100,8 +129,11 @@ func (tok *T) Decode(token []byte) (data []byte, creation time.Time, err error) 
 	}
 	raw = raw[:n]
 	hash := tok.hmac()
-	if len(raw) < aes.BlockSize*2+hash.Size() {
+	if len(raw) < 1+aes.BlockSize*2+hash.Size() {
 		return nil, time.Time{}, ErrInvalidToken
+	}
+	if raw[0] != tokenVersion {
+		return nil, time.Time{}, ErrUnsupportedTokenVersion
 	}
 	soff := len(raw) - hash.Size() // signature offset
 	hash.Write(raw[:soff])
@@ -110,8 +142,8 @@ func (tok *T) Decode(token []byte) (data []byte, creation time.Time, err error) 
 	if !hmac.Equal(want, have) {
 		return nil, time.Time{}, ErrInvalidTokenSignature
 	}
-	iv := raw[:aes.BlockSize]
-	body := raw[aes.BlockSize:soff]
+	iv := raw[1 : 1+aes.BlockSize]
+	body := raw[1+aes.BlockSize : soff]
 	if len(body)%aes.BlockSize != 0 {
 		return nil, time.Time{}, ErrInvalidToken
 	}

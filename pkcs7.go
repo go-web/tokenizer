@@ -2,6 +2,7 @@ package tokenizer
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"errors"
 )
 
@@ -51,13 +52,13 @@ func pkcs7Unpad(b []byte, blocksize int) ([]byte, error) {
 	}
 	c := b[len(b)-1]
 	n := int(c)
-	if n == 0 || n > len(b) {
+	// Valid PKCS7 padding length is 1..blocksize.
+	if n == 0 || n > blocksize || n > len(b) {
 		return nil, ErrInvalidPKCS7Padding
 	}
-	for i := 0; i < n; i++ {
-		if b[len(b)-n+i] != c {
-			return nil, ErrInvalidPKCS7Padding
-		}
+	pad := bytes.Repeat([]byte{c}, n)
+	if subtle.ConstantTimeCompare(b[len(b)-n:], pad) != 1 {
+		return nil, ErrInvalidPKCS7Padding
 	}
 	return b[:len(b)-n], nil
 }

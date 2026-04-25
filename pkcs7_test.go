@@ -51,6 +51,10 @@ func TestPKCS7Unpad(t *testing.T) {
 		{[]byte("helloworld\x02\x02"), []byte("helloworld"), 4, nil},
 		{[]byte("hello"), nil, 5, ErrInvalidPKCS7Padding},
 		{[]byte("hello\x00\x03\x03"), nil, 4, ErrInvalidPKCS7Padding},
+		// Padding length must be <= blocksize. Two full blocks where the last
+		// byte claims a 17-byte pad must be rejected even though it fits in
+		// the buffer.
+		{append(bytes.Repeat([]byte{'a'}, 15), append(bytes.Repeat([]byte{'b'}, 16), 0x11)...), nil, 16, ErrInvalidPKCS7Padding},
 	}
 	e1 := "unexpected error for item %d, %q: "
 	e2 := "failed unpadding item %d, %q: "

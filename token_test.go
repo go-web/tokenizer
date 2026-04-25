@@ -22,6 +22,14 @@ func TestTokenizer(t *testing.T) {
 	if err == nil {
 		t.Fatal("short key is not supposed to work")
 	}
+	_, err = New(NewKey(aes.BlockSize), nil, nil)
+	if err != ErrInvalidHMACKey {
+		t.Fatalf("empty hmac key: want ErrInvalidHMACKey, have %v", err)
+	}
+	_, err = New(NewKey(aes.BlockSize), []byte{}, nil)
+	if err != ErrInvalidHMACKey {
+		t.Fatalf("empty hmac key: want ErrInvalidHMACKey, have %v", err)
+	}
 	_, err = newTokenizer()
 	if err != nil {
 		t.Fatal(err)
@@ -53,11 +61,29 @@ func TestDecodeErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("unexpected decode with invalid payload")
 	}
-	l := aes.BlockSize*2 + tok.hmac().Size()
-	bad = base64.RawURLEncoding.EncodeToString(make([]byte, l))
+	// Too short: pre-version length should be rejected as ErrInvalidToken.
+	short := aes.BlockSize*2 + tok.hmac().Size()
+	bad = base64.RawURLEncoding.EncodeToString(make([]byte, short))
+	_, _, err = tok.Decode([]byte(bad))
+	if err != ErrInvalidToken {
+		t.Fatalf("short token: want ErrInvalidToken, have %v", err)
+	}
+	// Right length but unknown version byte.
+	l := 1 + aes.BlockSize*2 + tok.hmac().Size()
+	wrongVer := make([]byte, l)
+	wrongVer[0] = tokenVersion + 1
+	bad = base64.RawURLEncoding.EncodeToString(wrongVer)
+	_, _, err = tok.Decode([]byte(bad))
+	if err != ErrUnsupportedTokenVersion {
+		t.Fatalf("bad version: want ErrUnsupportedTokenVersion, have %v", err)
+	}
+	// Right length and version, but the HMAC won't match.
+	zeroes := make([]byte, l)
+	zeroes[0] = tokenVersion
+	bad = base64.RawURLEncoding.EncodeToString(zeroes)
 	_, _, err = tok.Decode([]byte(bad))
 	if err != ErrInvalidTokenSignature {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("bad signature: want ErrInvalidTokenSignature, have %v", err)
 	}
 }
 
